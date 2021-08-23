@@ -1,0 +1,12 @@
+-r _building/requirements.txt
+
+
+k3ut>=0.1.15,<0.2
+k3utfjson>=0.1.1,<0.2
+k3thread>=0.1.0,<0.2
+k3proc>=0.2.13,<0.3.0
+k3jobq>=0.1.2,<0.2
+psutil>=5.8.0
+gevent-websocket>=0.10.1
+websocket-client>=1.2.0
+k3daemonize>=0.1.0,<0.2
