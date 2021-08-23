@@ -1,0 +1,7 @@
+_extends: gh-config
+
+repository:
+  description: This module is a gevent based websocket server. When the server receives a job description from a client,
+    it runs that job asynchronously in a thread, and reports the progress back to the client periodically.
+  homepage: https://blog.openacid.com
+  topics: python, thread
