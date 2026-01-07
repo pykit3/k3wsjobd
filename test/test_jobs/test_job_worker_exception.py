@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 def run(job):
-
     a = []
     logger.info(a[0])
 
