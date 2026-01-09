@@ -21,8 +21,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest k3ut k3proc k3daemonize websocket-client
-        pip install -e .
+        pip install -e ".[dev]"
     - name: Test with pytest
       run: |
         pytest -v

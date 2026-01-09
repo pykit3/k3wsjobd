@@ -41,6 +41,10 @@ dev = [
     "pytest>=7.0",
     "ruff",
     "coverage",
+    "k3ut",
+    "k3proc",
+    "k3daemonize",
+    "websocket-client",
 ]
 publish = [
     "build",
