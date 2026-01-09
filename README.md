@@ -1,7 +1,6 @@
 # k3wsjobd
 
 [![Action-CI](https://github.com/pykit3/k3wsjobd/actions/workflows/python-package.yml/badge.svg)](https://github.com/pykit3/k3wsjobd/actions/workflows/python-package.yml)
-[![Build Status](https://travis-ci.com/pykit3/k3wsjobd.svg?branch=master)](https://travis-ci.com/pykit3/k3wsjobd)
 [![Documentation Status](https://readthedocs.org/projects/k3wsjobd/badge/?version=stable)](https://k3wsjobd.readthedocs.io/en/stable/?badge=stable)
 [![Package](https://img.shields.io/pypi/pyversions/k3wsjobd)](https://pypi.org/project/k3wsjobd)
 
