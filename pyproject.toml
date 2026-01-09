@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "k3wsjobd"
-version = "0.1.3"
+version = "0.1.4"
 description = "Gevent-based WebSocket server for async job processing"
 readme = "README.md"
 license = {text = "MIT"}
