@@ -1,19 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import logging
 import threading
 from collections import OrderedDict
+from typing import ClassVar
 
-import psutil
-from geventwebsocket import Resource
-from geventwebsocket import WebSocketApplication
-from geventwebsocket import WebSocketError
-from geventwebsocket import WebSocketServer
-
+import k3jobq
 import k3thread
 import k3utfjson
-import k3jobq
+import psutil
+from geventwebsocket import Resource, WebSocketApplication, WebSocketError, WebSocketServer
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +69,9 @@ class JobNotInSessionError(JobError):
     pass
 
 
-class Job(object):
+class Job:
     lock = threading.RLock()
-    sessions = {}
+    sessions: ClassVar[dict] = {}
 
     def __init__(self, channel, msg, func):
         """
@@ -106,9 +100,7 @@ class Job(object):
         self.progress_available = threading.Event()
 
         if self.ident in self.sessions:
-            logger.info(
-                "job: %s already exists, created by chennel %s" % (self.ident, repr(self.sessions[self.ident].channel))
-            )
+            logger.info(f"job: {self.ident} already exists, created by chennel {self.sessions[self.ident].channel!r}")
             return
         else:
             self.sessions[self.ident] = self
@@ -120,15 +112,15 @@ class Job(object):
         self.thread = k3thread.start(target=self.work, args=(), daemon=True)
 
     def work(self):
-        logger.info("job %s started, the data is: %s" % (self.ident, self.data))
+        logger.info(f"job {self.ident} started, the data is: {self.data}")
 
         try:
             self.worker(self)
         except Exception as e:
-            logger.exception("job %s got exception: %s" % (self.ident, repr(e)))
+            logger.exception(f"job {self.ident} got exception")
             self.err = e
         finally:
-            logger.info("job %s ended" % self.ident)
+            logger.info(f"job {self.ident} ended")
             self.close()
 
     def close(self):
@@ -158,13 +150,13 @@ def progress_sender(job, channel, interval=5, stat=None):
         while True:
             # if thread died due to some reason, still send 10 stats
             if not job.thread.is_alive():
-                logger.info("job %s died: %s" % (job.ident, repr(job.err)))
+                logger.info(f"job {job.ident} died: {job.err!r}")
                 if i == 0:
                     channel.ws.close()
                     break
                 i -= 1
 
-            logger.info("jod %s on channel %s send progress: %s" % (job.ident, repr(channel), repr(stat(data))))
+            logger.info(f"jod {job.ident} on channel {channel!r} send progress: {stat(data)!r}")
 
             to_send = stat(data)
             if channel.report_system_load and isinstance(to_send, dict):
@@ -175,16 +167,14 @@ def progress_sender(job, channel, interval=5, stat=None):
             if job.progress_available.wait(interval):
                 job.progress_available.clear()
 
-    except WebSocketError as e:
+    except WebSocketError:
         if channel.ws.closed:
             logger.info("the client has closed the connection")
         else:
-            logger.exception(
-                ("got websocket error when sending progress on" + " channel %s: %s") % (repr(channel), repr(e))
-            )
+            logger.exception(f"got websocket error when sending progress on channel {channel!r}")
 
-    except Exception as e:
-        logger.exception("got exception when sending progress on channel %s: %s" % (repr(channel), repr(e)))
+    except Exception:
+        logger.exception(f"got exception when sending progress on channel {channel!r}")
         channel.ws.close()
 
 
@@ -199,8 +189,8 @@ class JobdWebSocketApplication(WebSocketApplication):
         try:
             try:
                 msg = k3utfjson.load(message)
-            except Exception:
-                raise InvalidMessageError("message is not a vaild json string: %s" % message)
+            except Exception as e:
+                raise InvalidMessageError(f"message is not a vaild json string: {message}") from e
 
             self._check_msg(msg)
 
@@ -220,19 +210,19 @@ class JobdWebSocketApplication(WebSocketApplication):
             return
 
         except SystemOverloadError as e:
-            logger.info("system overload on chennel %s, %s" % (repr(self), repr(e)))
+            logger.info(f"system overload on chennel {self!r}, {e!r}")
             self._send_err_and_close(e)
 
         except JobError as e:
-            logger.info("error on channel %s while handling message, %s" % (repr(self), repr(e)))
+            logger.info(f"error on channel {self!r} while handling message, {e!r}")
             self._send_err_and_close(e)
 
         except Exception as e:
-            logger.exception(("exception on channel %s while handling " + "message, %s") % (repr(self), repr(e)))
+            logger.exception(f"exception on channel {self!r} while handling message")
             self._send_err_and_close(e)
 
     def on_message(self, message):
-        logger.info("on message, the channel is: %s, the message is: %s" % (repr(self), message))
+        logger.info(f"on message, the channel is: {self!r}, the message is: {message}")
         if self.ignore_message:
             return
 
@@ -248,7 +238,9 @@ class JobdWebSocketApplication(WebSocketApplication):
                 "val": err.args,
             }
             self.ws.send(k3utfjson.dump(err_msg))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            # Reporting the error to the client is best effort: a failure here is
+            # logged and must not hide the error being reported.
             logger.error(("error on channel %s while sending back error " + "message, %s") % (repr(self), repr(e)))
 
     def get_system_load(self):
@@ -265,7 +257,7 @@ class JobdWebSocketApplication(WebSocketApplication):
             param_value = check_load.get(param_name, param_attr["default"])
 
             if not isinstance(param_value, (int, float)):
-                raise InvalidMessageError("%s is not a number" % param_name)
+                raise InvalidMessageError(f"{param_name} is not a number")
 
             load_name = param_attr["load_name"]
             diff = system_load[load_name] - param_value
@@ -274,10 +266,11 @@ class JobdWebSocketApplication(WebSocketApplication):
                 diff = 0 - diff
 
             if diff < 0:
-                raise SystemOverloadError(
-                    "%s: %d is %s than: %d"
-                    % (load_name, system_load[load_name], param_attr["greater"] and "less" or "greater", param_value)
-                )
+                # The message shows whole numbers, but the CPU idle percent is a float.
+                load = int(system_load[load_name])
+                relation = "less" if param_attr["greater"] else "greater"
+                threshold = int(param_value)
+                raise SystemOverloadError(f"{load_name}: {load} is {relation} than: {threshold}")
 
     def _check_msg(self, msg):
         if not isinstance(msg, dict):
@@ -323,7 +316,7 @@ class JobdWebSocketApplication(WebSocketApplication):
         try:
             mod = __import__(mod_path)
         except (ImportError, SyntaxError) as e:
-            raise LoadingError("failed to import %s: %s" % (mod_path, repr(e)))
+            raise LoadingError(f"failed to import {mod_path}: {e!r}")
 
         for mod_name in mod_path.split(".")[1:]:
             mod = getattr(mod, mod_name)

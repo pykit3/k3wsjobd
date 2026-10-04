@@ -1,16 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import os
 import random
 import time
 import unittest
 
+import k3proc
+import k3ut
+import k3utfjson
 import websocket
 
-import k3proc
-import k3utfjson
-import k3ut
 from k3wsjobd import Job
 from k3wsjobd.test.wsjobd_server import PORT
 
@@ -22,9 +19,9 @@ this_base = os.path.dirname(__file__)
 
 def subproc(script, env=None):
     if env is None:
-        env = dict(
-            PYTHONPATH=this_base + "/../..",
-        )
+        env = {
+            "PYTHONPATH": this_base + "/../..",
+        }
 
     return k3proc.shell_script(script, env=env)
 
@@ -33,8 +30,8 @@ class TestWsjobd(unittest.TestCase):
     @classmethod
     def _clean(cls):
         try:
-            subproc("python {b}/wsjobd_server.py stop".format(b=this_base))
-        except Exception as e:
+            subproc(f"python {this_base}/wsjobd_server.py stop")
+        except OSError as e:
             dd("failed to stop wsjobd server: " + repr(e))
 
         time.sleep(0.1)
@@ -42,7 +39,7 @@ class TestWsjobd(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._clean()
-        subproc("python {b}/wsjobd_server.py start".format(b=this_base))
+        subproc(f"python {this_base}/wsjobd_server.py start")
         time.sleep(1)
 
     @classmethod
@@ -51,7 +48,7 @@ class TestWsjobd(unittest.TestCase):
 
     def _create_client(self):
         ws = websocket.WebSocket()
-        ws.connect("ws://127.0.0.1:%d" % PORT)
+        ws.connect(f"ws://127.0.0.1:{PORT}")
         ws.timeout = 6
         return ws
 
@@ -62,7 +59,7 @@ class TestWsjobd(unittest.TestCase):
         self.ws.close()
 
     def get_random_ident(self):
-        return "random_ident_%d" % random.randint(10000, 99999)
+        return f"random_ident_{random.randint(10000, 99999)}"
 
     def _wait_for_result(self, ws):
         # wait for test_job_echo.run to fillin resp['result']
@@ -427,7 +424,7 @@ class TestWsjobd(unittest.TestCase):
             resp = self.ws.recv()
             self.assertNotIn("err", resp)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(websocket.WebSocketConnectionClosedException):
             for i in range(3):
                 self.ws.recv()
 
@@ -436,7 +433,6 @@ class TestWsjobd(unittest.TestCase):
 
         def f(self):
             time.sleep(0.2)
-            return
 
         Job("channel", {"ident": "a"}, f)
         joba = Job.sessions["a"]

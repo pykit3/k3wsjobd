@@ -20,7 +20,7 @@ pip install k3wsjobd
 import k3wsjobd
 
 # Start WebSocket job server
-k3wsjobd.run(ip='127.0.0.1', port=33445)
+k3wsjobd.run(ip="127.0.0.1", port=33445)
 ```
 
 ## API Reference
