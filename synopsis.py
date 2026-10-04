@@ -1,5 +1,6 @@
+import logging
+
 import k3wsjobd
-from k3wsjobd import logging
 
 
 def run():

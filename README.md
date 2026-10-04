@@ -24,8 +24,9 @@ pip install k3wsjobd
 # Synopsis
 
 ```python
+import logging
+
 import k3wsjobd
-from k3wsjobd import logging
 
 
 def run():
