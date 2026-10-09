@@ -4,10 +4,6 @@ it runs that job asynchronously in a thread, and reports the progress back to th
 
 """
 
-from importlib.metadata import version
-
-__version__ = version("k3wsjobd")
-
 from .wsjobd import (
     InvalidMessageError,
     InvalidProgressError,
@@ -31,3 +27,14 @@ __all__ = [
     "SystemOverloadError",
     "run",
 ]
+
+
+def __getattr__(name: str) -> str:
+    # importlib.metadata takes about 20 ms to import, so it is loaded only
+    # when __version__ is read
+    if name != "__version__":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from importlib.metadata import version
+
+    return version("k3wsjobd")
