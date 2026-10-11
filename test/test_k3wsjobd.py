@@ -2,13 +2,14 @@ import os
 import random
 import time
 import unittest
+from unittest import mock
 
 import k3proc
 import k3ut
 import k3utfjson
 import websocket
 
-from k3wsjobd import Job
+from k3wsjobd import InvalidProgressError, Job, JobdWebSocketApplication
 from k3wsjobd.test.wsjobd_server import PORT
 
 dd = k3ut.dd
@@ -466,3 +467,26 @@ class TestWsjobd(unittest.TestCase):
         Job("channel", {"ident": "a"}, f)
         joba2 = Job.sessions["a"]
         self.assertNotEqual(joba1, joba2)
+
+
+class TestJobdWebSocketApplication(unittest.TestCase):
+    def test_invalid_progress_starts_no_job(self):
+        cases = (
+            "foo",
+            ["foo"],
+            {"interval": "foo"},
+            {"interval": 0},
+            {"key": ["foo"]},
+        )
+        for progress in cases:
+            app = JobdWebSocketApplication(mock.MagicMock())
+            msg = {"ident": "foo", "func": "foo.bar", "progress": progress}
+
+            with (
+                mock.patch.object(app, "_get_func_by_name"),
+                mock.patch("k3wsjobd.wsjobd.get_or_create_job") as get_or_create_job,
+                self.assertRaises(InvalidProgressError),
+            ):
+                app._setup_response(msg)
+
+            self.assertEqual(0, get_or_create_job.call_count, progress)

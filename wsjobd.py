@@ -283,6 +283,12 @@ class JobdWebSocketApplication(WebSocketApplication):
             raise InvalidMessageError("'func' is not in message")
 
     def _setup_response(self, msg):
+        # The progress settings are checked first, so an invalid one starts no job.
+        progress = msg.get("progress", {})
+        send_progress = progress not in (None, False)
+        if send_progress:
+            interval, progress_key = self._parse_progress(progress)
+
         func = self._get_func_by_name(msg)
         channel = self
         job = get_or_create_job(channel, msg, func)
@@ -290,16 +296,8 @@ class JobdWebSocketApplication(WebSocketApplication):
         if job is None:
             raise JobNotInSessionError("job not in sessions: " + repr(Job.sessions))
 
-        progress = msg.get("progress", {})
-
-        if progress in (None, False):
+        if not send_progress:
             return
-
-        if not isinstance(progress, dict):
-            raise InvalidProgressError("the progress in message is not a dictionary")
-
-        interval = progress.get("interval", 5)
-        progress_key = progress.get("key")
 
         def get_progress(r):
             if progress_key is None:
@@ -307,6 +305,20 @@ class JobdWebSocketApplication(WebSocketApplication):
             return r.get(progress_key)
 
         k3thread.start(target=progress_sender, args=(job, channel, interval, get_progress), daemon=True)
+
+    def _parse_progress(self, progress):
+        if not isinstance(progress, dict):
+            raise InvalidProgressError("the progress in message is not a dictionary")
+
+        interval = progress.get("interval", 5)
+        if not isinstance(interval, (int, float)) or interval <= 0:
+            raise InvalidProgressError(f"the progress interval is not a positive number: {interval!r}")
+
+        progress_key = progress.get("key")
+        if progress_key is not None and not isinstance(progress_key, str):
+            raise InvalidProgressError(f"the progress key is not a string: {progress_key!r}")
+
+        return interval, progress_key
 
     def _get_func_by_name(self, msg):
         mod_func = self.jobs_dir.split("/") + msg["func"].split(".")
