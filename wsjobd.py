@@ -242,6 +242,9 @@ class JobdWebSocketApplication(WebSocketApplication):
             # Reporting the error to the client is best effort: a failure here is
             # logged and must not hide the error being reported.
             logger.error(("error on channel %s while sending back error " + "message, %s") % (repr(self), repr(e)))
+        finally:
+            # on_message() ignores every later request on this channel, so it is of no further use.
+            self.ws.close()
 
     def get_system_load(self):
         return {

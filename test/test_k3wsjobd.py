@@ -8,8 +8,9 @@ import k3proc
 import k3ut
 import k3utfjson
 import websocket
+from geventwebsocket import WebSocketError
 
-from k3wsjobd import InvalidProgressError, Job, JobdWebSocketApplication
+from k3wsjobd import InvalidMessageError, InvalidProgressError, Job, JobdWebSocketApplication
 from k3wsjobd.test.wsjobd_server import PORT
 
 dd = k3ut.dd
@@ -490,3 +491,19 @@ class TestJobdWebSocketApplication(unittest.TestCase):
                 app._setup_response(msg)
 
             self.assertEqual(0, get_or_create_job.call_count, progress)
+
+    def test_error_response_closes_the_channel(self):
+        ws = mock.MagicMock()
+        app = JobdWebSocketApplication(ws)
+        app._send_err_and_close(InvalidMessageError("foo"))
+
+        self.assertEqual([mock.call('{"err": "InvalidMessageError", "val": ["foo"]}')], ws.send.call_args_list)
+        self.assertEqual(1, ws.close.call_count)
+
+    def test_error_response_closes_the_channel_when_send_fails(self):
+        ws = mock.MagicMock()
+        ws.send.side_effect = WebSocketError("broken")
+        app = JobdWebSocketApplication(ws)
+        app._send_err_and_close(InvalidMessageError("foo"))
+
+        self.assertEqual(1, ws.close.call_count)
