@@ -550,6 +550,19 @@ class TestJobdWebSocketApplication(unittest.TestCase):
             self.assertIn("err", sent, message)
             self.assertEqual(1, ws.close.call_count, message)
 
+    def test_job_registers_under_the_lock(self):
+        lock_held = []
+
+        class Sessions(dict):
+            def __setitem__(self, key, value):
+                lock_held.append(Job.lock._is_owned())
+                super().__setitem__(key, value)
+
+        with mock.patch.object(Job, "sessions", Sessions()), mock.patch("k3thread.start"):
+            Job("channel", {"ident": "foo"}, None)
+
+        self.assertEqual([True], lock_held)
+
     def test_error_response_closes_the_channel(self):
         ws = mock.MagicMock()
         app = JobdWebSocketApplication(ws)

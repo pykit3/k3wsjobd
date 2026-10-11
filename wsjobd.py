@@ -99,15 +99,19 @@ class Job:
         self.err = None
         self.progress_available = threading.Event()
 
-        if self.ident in self.sessions:
-            logger.info(f"job: {self.ident} already exists, created by chennel {self.sessions[self.ident].channel!r}")
-            return
-        else:
-            self.sessions[self.ident] = self
-            logger.info(
-                ("inserted job: %s to sessions by channel %s, " + "there are %d jobs in sessions now")
-                % (self.ident, repr(self.channel), len(self.sessions))
-            )
+        # A Job can be created directly, not only by get_or_create_job(), so it takes the lock itself.
+        with self.lock:
+            if self.ident in self.sessions:
+                logger.info(
+                    f"job: {self.ident} already exists, created by chennel {self.sessions[self.ident].channel!r}"
+                )
+                return
+            else:
+                self.sessions[self.ident] = self
+                logger.info(
+                    ("inserted job: %s to sessions by channel %s, " + "there are %d jobs in sessions now")
+                    % (self.ident, repr(self.channel), len(self.sessions))
+                )
 
         self.thread = k3thread.start(target=self.work, args=(), daemon=True)
 
