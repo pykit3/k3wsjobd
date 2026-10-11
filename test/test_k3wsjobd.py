@@ -118,7 +118,7 @@ class TestWsjobd(unittest.TestCase):
         self.ws.recv()
         first_report_time = time.time()
 
-        self.ws.recv()
+        second_report = k3utfjson.load(self.ws.recv())
         second_report_time = time.time()
 
         actual_interval = second_report_time - first_report_time
@@ -126,7 +126,10 @@ class TestWsjobd(unittest.TestCase):
         diff = actual_interval - job_desc["progress"]["interval"]
 
         # tolerate 0.1 second of difference
-        self.assertLess(diff, 0.1)
+        self.assertLess(abs(diff), 0.1)
+
+        # The job sets n to 0 when it starts and to 1 a second later.
+        self.assertEqual(dict(job_desc, n=0), second_report)
 
     def test_invalid_progress_key(self):
         job_desc = {
@@ -332,6 +335,38 @@ class TestWsjobd(unittest.TestCase):
         self.assertEqual("bar", resp["result"])
         self.assertEqual("bar", resp["echo"])
 
+    def test_same_ident_different_func(self):
+        ident = self.get_random_ident()
+        job_desc = {
+            "func": "test_job_echo.run",
+            "ident": ident,
+            "echo": "foo",
+            "sleep_time": 10,
+            "jobs_dir": "k3wsjobd/test/test_jobs",
+        }
+
+        self.ws.send(k3utfjson.dump(job_desc))
+
+        resp = k3utfjson.load(self.ws.recv())
+        self.assertEqual("foo", resp["result"])
+
+        ws = self._create_client()
+        ws.send(
+            k3utfjson.dump(
+                {
+                    "func": "test_job_normal.run",
+                    "ident": ident,
+                    "echo": "bar",
+                    "jobs_dir": "k3wsjobd/test/test_jobs",
+                }
+            )
+        )
+
+        resp = k3utfjson.load(ws.recv())
+        ws.close()
+        # A request with the ident of a running job attaches to that job, whatever its func and data.
+        self.assertEqual(dict(job_desc, result="foo"), resp)
+
     def test_client_close(self):
         ident = self.get_random_ident()
         job_desc = {
@@ -491,6 +526,29 @@ class TestJobdWebSocketApplication(unittest.TestCase):
                 app._setup_response(msg)
 
             self.assertEqual(0, get_or_create_job.call_count, progress)
+
+    def test_invalid_request_starts_no_job(self):
+        cases = (
+            "foo",
+            k3utfjson.dump("foo"),
+            k3utfjson.dump({"func": "foo.bar"}),
+            k3utfjson.dump({"ident": "foo"}),
+            k3utfjson.dump({"ident": "foo", "func": "foo.bar", "cpu_sample_interval": "foo"}),
+            k3utfjson.dump({"ident": "foo", "func": "foo.bar", "check_load": {"mem_low_threshold": "foo"}}),
+            k3utfjson.dump({"ident": "foo", "func": "foo.bar", "progress": "foo"}),
+            k3utfjson.dump({"ident": "foo", "func": "foo.bar", "jobs_dir": "inexistent"}),
+        )
+        for message in cases:
+            ws = mock.MagicMock()
+            app = JobdWebSocketApplication(ws)
+
+            with mock.patch("k3wsjobd.wsjobd.get_or_create_job") as get_or_create_job:
+                app._parse_request(message)
+
+            self.assertEqual(0, get_or_create_job.call_count, message)
+            sent = k3utfjson.load(ws.send.call_args.args[0])
+            self.assertIn("err", sent, message)
+            self.assertEqual(1, ws.close.call_count, message)
 
     def test_error_response_closes_the_channel(self):
         ws = mock.MagicMock()
